@@ -61,31 +61,34 @@ func loopSortCombineSortedInput(arr []int32, batchNumber int) {
 func loopCombineChannel(arr []int32, result map[int]Result) {
 	totalBatch := len(result)
 	log.Println("totalBatch", totalBatch)
-	j := 0
-	k := 1
-	i := 0
+	j := totalBatch - 1
+	k := j - 1
+	i := totalBatch/2 - 1
+	if totalBatch%2 > 0 {
+		i = i + 1
+	}
 	for {
-		if j >= totalBatch-1 {
+		if j <= 0 {
 			break
 		}
 		go combineMaxSubsetSumAbove10000(arr, maxSubsetSumAboveXChannel)
 		maxSubsetSumAboveXChannel <- CombineSortedInput{
-			result: []Result{result[j], result[k]},
+			result: []Result{result[k], result[j]},
 			batch:  i,
 		}
-		j = k + 1
-		k = j + 1
-		i++
+		j = k - 1
+		k = j - 1
+		i--
 	}
 
 	if totalBatch%2 > 0 {
-		go loopSortCombineSortedInput(arr, i+1)
+		go loopSortCombineSortedInput(arr, totalBatch/2+1)
 		sortCombineSortedInputChannel <- SortedInput{
 			batch:  i,
-			result: result[totalBatch-1],
+			result: result[0],
 		}
 	} else {
-		go loopSortCombineSortedInput(arr, i)
+		go loopSortCombineSortedInput(arr, totalBatch/2)
 	}
 }
 

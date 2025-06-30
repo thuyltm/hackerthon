@@ -28,3 +28,9 @@ type CombineSortedInput struct {
 	result []Result
 	batch  int
 }
+
+type UpdateResult struct {
+	maxValueTail int32
+	maxListTail  []int
+	maxTailKey   int
+}

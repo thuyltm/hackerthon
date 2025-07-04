@@ -13,6 +13,8 @@ import (
 )
 
 // Complete the maxSubsetSum function below.
+const COMPARE = false
+const DEBUG = false
 
 func maxSubsetSum(arr []int32) int32 {
 	start := time.Now()
@@ -20,10 +22,9 @@ func maxSubsetSum(arr []int32) int32 {
 	elapsed := time.Since(start)
 	fmt.Printf("Simulated operation took %d seconds\n", int(elapsed/time.Second))
 	log.Println(result.maxValue)
-	//log.Println(result.maxList)
 	//printResult(result)
-	//result2 := maxSubsetSumWithoutChannel(arr, 0, len(arr)-1)
-	//log.Println(result2.maxValue)
+	/* result2 := maxSubsetSumWithoutChannel(arr, 0, len(arr)-1)
+	log.Println(result2.maxValue) */
 	//log.Println(result.maxList)
 	//printResult(result2)
 	return result.maxValue
@@ -73,8 +74,8 @@ func divideAndConquer(arr []int32, start int, end int) Result {
 	if len(result1.maxList) > 0 && len(result2.maxList) == 0 {
 		return result1
 	}
-	result1 = updateWhenMerge2Result(result1, result2)
-	result1 = reUpdateMaxValue4All(result1, arr)
+	result1 = updateWhenMerge2Result(arr, result1, result2)
+	result1 = reUpdateMaxValue4All(arr, result1, result2)
 	//log.Println("==============Start Special Case result2.maxValue > result1.maxCase ===================")
 	if result2.maxValue > result1.maxValue {
 		result1.maxValue = result2.maxValue
@@ -82,15 +83,32 @@ func divideAndConquer(arr []int32, start int, end int) Result {
 	}
 	//log.Println("==============End Special Corner Case===================")
 	//log.Println(result1)
-	//tempResult := maxSubsetSumWithoutChannel(arr, start, end)
-	//debug(tempResult, result1, result2, arr, start, end, middle)
+	if COMPARE {
+		tempResult := maxSubsetSumWithoutChannel(arr, start, end)
+		debug(tempResult, result1, result2, arr, start, end, middle)
+	}
 	if result1.sortedKeyList[len(result1.sortedKeyList)-1] == result2.sortedKeyList[0] {
 		result1.sortedKeyList = append(result1.sortedKeyList, result2.sortedKeyList[1:]...)
 	} else {
 		result1.sortedKeyList = append(result1.sortedKeyList, result2.sortedKeyList...)
 	}
-	result1.tailList = result2.tailList
-	result1.adjacentTailList = result2.adjacentTailList
+	updateTailList := []int{}
+	updateAdjacentTailList := []int{}
+	for i := len(result1.sortedKeyList) - 1; i >= 0; i-- {
+		currentKey := result1.sortedKeyList[i]
+		nonAdjTailList := result1.mapNonAdjacentList[currentKey]
+		if len(nonAdjTailList) == 0 {
+			updateTailList = append(updateTailList, currentKey)
+			continue
+		}
+		if len(nonAdjTailList) > 0 && slices.Contains(updateTailList, nonAdjTailList[0]) {
+			updateAdjacentTailList = append(updateAdjacentTailList, currentKey)
+			continue
+		}
+		break
+	}
+	result1.tailList = updateTailList
+	result1.adjacentTailList = updateAdjacentTailList
 	return result1
 }
 
@@ -102,11 +120,37 @@ func debug(tempResult Result, result1 Result, result2 Result, arr []int32, start
 		log.Println(arr[middle-1 : end]) */
 		log.Println(result1.maxList, "value=", result1.maxValue)
 		log.Println(tempResult.maxList, "value=", tempResult.maxValue)
-		log.Println(result1.mapNonAdjacentList[4324])
-		log.Println(result1.mapMaxValue[4327])
-		log.Println(result1.mapMaxValue[4326])
+		log.Println(result2.maxList, "value=", result2.maxValue)
+		log.Println(result2.sortedKeyList)
+		//printResult(result1)
+		for i := 0; i < len(result1.mapNextListMax[7577]); i++ {
+			log.Print(result1.mapMaxValue[result1.mapNextListMax[7577][i]],
+				tempResult.mapMaxValue[tempResult.mapNextListMax[7577][i]])
+		}
+		/* log.Println(result1.mapMaxValue[7579], tempResult.mapMaxValue[7579])
+		log.Println(result1.mapMaxValue[7580], tempResult.mapMaxValue[7580])
+		log.Println(arr[7579], arr[7580])
+		log.Println(result1.mapMaxValue[7581])
+		log.Println(result1.mapMaxValue[7582]) */
+
 		log.Println(result1.adjacentTailList)
 		log.Println(result1.tailList)
+		for i := 0; i < len(result1.maxList); i++ {
+			if result1.maxList[i] != tempResult.maxList[i] {
+				log.Printf("Diff result1 %d, temp %d", result1.maxList[i], tempResult.maxList[i])
+				log.Println(result1.maxList[i], result1.mapNextListMax[result1.maxList[i]],
+					result1.mapMaxValue[result1.maxList[i]])
+				log.Println(tempResult.maxList[i], result1.mapNextListMax[tempResult.maxList[i]],
+					result1.mapMaxValue[tempResult.maxList[i]])
+				log.Println(tempResult.maxList[i], tempResult.mapNextListMax[tempResult.maxList[i]],
+					result1.mapMaxValue[tempResult.maxList[i]])
+				if i-1 >= 0 {
+					log.Printf("Parent %d", result1.maxList[i-1])
+					log.Println(result1.mapNonAdjacentList[result1.maxList[i-1]])
+				}
+				break
+			}
+		}
 		//printResult(result1)
 		//printResult(result2)
 		log.Println("==============end debug===================")
@@ -114,54 +158,52 @@ func debug(tempResult Result, result1 Result, result2 Result, arr []int32, start
 	}
 }
 
-func updateWhenMerge2Result(result1 Result, result2 Result) Result {
+func updateWhenMerge2Result(arr []int32, result1 Result, result2 Result) Result {
 	tailList1 := result1.tailList
 	sortedKeyList2 := result2.sortedKeyList
 	maxList2 := result2.maxList
-	loopSortedKeyList2 := []int{maxList2[0]}
-	if len(maxList2) >= 2 {
-		comparableKey2 := maxList2[1]
-		comparableValue2 := result2.mapMaxValue[comparableKey2]
-		i := 0
-		for {
-			if i == len(sortedKeyList2) {
-				break
-			}
-			key := sortedKeyList2[i]
-			if key == maxList2[0] {
-				i++
-				continue
-			}
-			if key > comparableKey2 {
-				break
-			}
-			if result2.mapMaxValue[key] >= comparableValue2 {
-				loopSortedKeyList2 = append([]int{maxList2[0]}, key)
-				comparableValue2 = result2.mapMaxValue[key]
-			}
-			i++
+	connectSortedKeyList2 := createConnectSortedKeyList2(sortedKeyList2)
+	for i := len(connectSortedKeyList2) - 1; i >= 0; i-- {
+		key := connectSortedKeyList2[i]
+		if slices.Contains(maxList2, key) || slices.Contains(result2.tailList, key) ||
+			slices.Contains(result2.adjacentTailList, key) {
+			continue
 		}
-	} else {
-		//log.Println("================Start Special Case len(maxList)=1=========================")
-		loopSortedKeyList2 = make([]int, len(sortedKeyList2))
-		copy(loopSortedKeyList2, sortedKeyList2)
-		//log.Println("================End Special Case=========================================")
+		result2 = updateOtherHead(arr, result2, key, 0)
+		if DEBUG {
+			if !checkUnique(result2.mapNextListMax[key]) {
+				log.Fatal("Error Unique in updateOtherHead of updateWhenMerge2Result")
+			}
+			if !checkInvalid(result2.mapNextListMax[key]) {
+				log.Fatal("Error Invalid in updateOtherHead of updateWhenMerge2Result")
+			}
+		}
 	}
 	for _, key := range sortedKeyList2 {
-		result1.mapNonAdjacentList[key] = result2.mapNonAdjacentList[key]
-		result1.mapMaxValue[key] = result2.mapMaxValue[key]
-		result1.mapNextListMax[key] = result2.mapNextListMax[key]
+		if !slices.Contains(result1.sortedKeyList, key) {
+			result1.mapNonAdjacentList[key] = result2.mapNonAdjacentList[key]
+			result1.mapMaxValue[key] = result2.mapMaxValue[key]
+			result1.mapNextListMax[key] = result2.mapNextListMax[key]
+		}
 	}
+
 	for _, key := range result1.tailList {
-		for _, key2 := range loopSortedKeyList2 {
-			if key+1 < key2 && !slices.Contains(tailList1, key2) {
+		for _, key2 := range connectSortedKeyList2 {
+			if key+1 < key2 && !slices.Contains(tailList1, key2) &&
+				!slices.Contains(result1.mapNonAdjacentList[key], key2) {
 				result1.mapNonAdjacentList[key] = append(result1.mapNonAdjacentList[key], key2)
+			}
+		}
+		if DEBUG {
+			if len(result1.mapNonAdjacentList[key]) == 0 && len(result2.sortedKeyList) >= 4 {
+				log.Fatal("Error mapNonAdjacentList of the tail key is empty ", key)
 			}
 		}
 	}
 	for _, key := range result1.adjacentTailList {
-		for _, key2 := range loopSortedKeyList2 {
-			if key+1 < key2 && !slices.Contains(tailList1, key2) {
+		for _, key2 := range connectSortedKeyList2 {
+			if key+1 < key2 && !slices.Contains(tailList1, key2) &&
+				!slices.Contains(result1.mapNonAdjacentList[key], key2) {
 				result1.mapNonAdjacentList[key] = append(result1.mapNonAdjacentList[key], key2)
 			}
 		}
@@ -169,7 +211,14 @@ func updateWhenMerge2Result(result1 Result, result2 Result) Result {
 	return result1
 }
 
-func reUpdateMaxValue4All(result1 Result, arr []int32) Result {
+func createConnectSortedKeyList2(sortedKeyList2 []int) []int {
+	if len(sortedKeyList2) < 4 {
+		return sortedKeyList2
+	}
+	return sortedKeyList2[0:4]
+}
+
+func reUpdateMaxValue4All(arr []int32, result1 Result, result2 Result) Result {
 	result1, updateResult := reUpdateMaxValueForTailOfResult1(arr, result1)
 	sortKeyList := result1.sortedKeyList
 	if len(sortKeyList) == len(result1.tailList) {
@@ -183,31 +232,35 @@ func reUpdateMaxValue4All(result1 Result, arr []int32) Result {
 		result1.maxList = updateResult.maxListTail
 		return result1
 	}
-	return reUpdateHeadList(arr, result1, updateResult)
+	result1 = reUpdateHeadList(arr, result1, updateResult)
+	if DEBUG {
+		if !slices.Contains(result2.tailList, result1.maxList[len(result1.maxList)-1]) &&
+			len(result2.sortedKeyList) >= 3 {
+			log.Println(result1.maxList)
+			log.Println(result2.maxList)
+			log.Fatal("Error the tailf of maxList does not conntain tailList when joining 2 result")
+		}
+		if !checkUnique(result1.maxList) {
+			log.Println(result1.maxList)
+			log.Println(result2.maxList)
+			log.Fatal("Error Unique in reUpdateHeadList")
+		}
+		if !checkInvalid(result1.maxList) {
+			log.Println(result1.maxList)
+			log.Println(result2.maxList)
+			log.Fatal("Error Invalid in reUpdateHeadList")
+		}
+	}
+	return result1
 }
 
 func reUpdateMaxValueForTailOfResult1(arr []int32, result1 Result) (Result, UpdateResult) {
 	tailList := result1.tailList
 	updateResult := UpdateResult{}
 	for _, key := range tailList {
-		var maxValueKey int32
-		nonAdjList := result1.mapNonAdjacentList[key]
-		if len(nonAdjList) == 0 {
-			maxValueKey = result1.mapMaxValue[key]
-		} else {
-			var maxAdjKey int
-			for _, nonAdjKey := range nonAdjList {
-				newValue := arr[key] + result1.mapMaxValue[nonAdjKey]
-				if newValue > maxValueKey {
-					maxValueKey = newValue
-					maxAdjKey = nonAdjKey
-				}
-			}
-			result1.mapMaxValue[key] = maxValueKey
-			result1.mapNextListMax[key] = append([]int{key}, result1.mapNextListMax[maxAdjKey]...)
-		}
-		if maxValueKey > updateResult.maxValueTail {
-			updateResult.maxValueTail = maxValueKey
+		result1 = calcKeyFromNonAdjacentList(arr, result1, key)
+		if result1.mapMaxValue[key] > updateResult.maxValueTail {
+			updateResult.maxValueTail = result1.mapMaxValue[key]
 			updateResult.maxListTail = result1.mapNextListMax[key]
 			updateResult.maxTailKey = key
 		}
@@ -218,42 +271,8 @@ func reUpdateMaxValueForTailOfResult1(arr []int32, result1 Result) (Result, Upda
 func reUpdateMaxValue4AdjacentTail(arr []int32, result1 Result,
 	updateResult UpdateResult) (Result, UpdateResult) {
 	adjacentTailList := result1.adjacentTailList
-	maxTailKey := updateResult.maxTailKey
-	tailList := result1.tailList
 	for _, key := range adjacentTailList {
-		nonAdjacentKeyList := result1.mapNonAdjacentList[key]
-		//AdjacentTail contains more key from result2
-		isContailAllTailKeyList := true
-		for _, nonAdjacentKey := range nonAdjacentKeyList {
-			if !slices.Contains(tailList, nonAdjacentKey) {
-				isContailAllTailKeyList = false
-			}
-		}
-		if isContailAllTailKeyList &&
-			(slices.Contains(nonAdjacentKeyList, maxTailKey) || key+1 < maxTailKey) {
-			result1.mapMaxValue[key] = arr[key] + result1.mapMaxValue[maxTailKey]
-			result1.mapNextListMax[key] = append([]int{key}, result1.mapNextListMax[maxTailKey]...)
-			if !slices.Contains(nonAdjacentKeyList, maxTailKey) {
-				result1.mapNonAdjacentList[key] = append([]int{maxTailKey}, result1.mapNonAdjacentList[key]...)
-			}
-			if result1.mapMaxValue[key] > updateResult.maxValueTail {
-				updateResult.maxValueTail = result1.mapMaxValue[key]
-				updateResult.maxListTail = result1.mapNextListMax[key]
-				updateResult.maxTailKey = key
-			}
-			continue
-		}
-		var newMaxValue int32
-		var newMaxKey int
-		for _, nonAdjacentKey := range nonAdjacentKeyList {
-			currentValue := arr[key] + result1.mapMaxValue[nonAdjacentKey]
-			if currentValue > newMaxValue {
-				newMaxValue = currentValue
-				newMaxKey = nonAdjacentKey
-			}
-		}
-		result1.mapMaxValue[key] = newMaxValue
-		result1.mapNextListMax[key] = append([]int{key}, result1.mapNextListMax[newMaxKey]...)
+		result1 = calcKeyFromNonAdjacentList(arr, result1, key)
 		if result1.mapMaxValue[key] > updateResult.maxValueTail {
 			updateResult.maxValueTail = result1.mapMaxValue[key]
 			updateResult.maxListTail = result1.mapNextListMax[key]
@@ -264,63 +283,240 @@ func reUpdateMaxValue4AdjacentTail(arr []int32, result1 Result,
 }
 
 func reUpdateHeadList(arr []int32, result1 Result, updateResult UpdateResult) Result {
-	sortedKeyList := result1.sortedKeyList
 	tailKeyList := result1.tailList
 	adjacentTailList := result1.adjacentTailList
 	maxTailKey := updateResult.maxTailKey
-	var maxList []int
-	var maxValue int32
-	for i := len(sortedKeyList) - len(tailKeyList) - len(adjacentTailList) - 1; i >= 0; i-- {
-		key := sortedKeyList[i]
-		var maxValueKey int32
-		var maxKey int
-		reUpdateValueNonAdjKey := []int{}
-		nonAdjList := result1.mapNonAdjacentList[key]
+	currentMaxList := result1.maxList
+	var oldMaxTailKey int
+	var oldMaxTailKeyIndex int
 
-		for _, nonAdjKey := range nonAdjList {
-			if !slices.Contains(tailKeyList, nonAdjKey) && !slices.Contains(adjacentTailList, nonAdjKey) {
-				reUpdateValueNonAdjKey = append(reUpdateValueNonAdjKey, nonAdjKey)
-			}
-			if slices.Contains(adjacentTailList, nonAdjKey) && nonAdjKey == maxTailKey {
-				reUpdateValueNonAdjKey = append(reUpdateValueNonAdjKey, nonAdjKey)
+	if slices.Contains(tailKeyList, maxTailKey) {
+		for oldMaxTailKeyIndex = len(currentMaxList) - 1; oldMaxTailKeyIndex >= 0; oldMaxTailKeyIndex-- {
+			oldMaxTailKey = currentMaxList[oldMaxTailKeyIndex]
+			if oldMaxTailKey == maxTailKey {
 				break
-			} else if slices.Contains(adjacentTailList, nonAdjKey) {
-				reUpdateValueNonAdjKey = append(reUpdateValueNonAdjKey, nonAdjKey)
 			}
-			if slices.Contains(tailKeyList, nonAdjKey) && len(reUpdateValueNonAdjKey) > 0 {
-				lastElm := reUpdateValueNonAdjKey[len(reUpdateValueNonAdjKey)-1]
-				if lastElm+1 == nonAdjKey {
-					reUpdateValueNonAdjKey = append(reUpdateValueNonAdjKey, nonAdjKey)
-				}
+			if !slices.Contains(tailKeyList, oldMaxTailKey) {
+				oldMaxTailKeyIndex++
+				oldMaxTailKey = currentMaxList[oldMaxTailKeyIndex]
 				break
 			}
 		}
-		for _, nonAdjKey := range reUpdateValueNonAdjKey {
-			newMaxValue := arr[key] + result1.mapMaxValue[nonAdjKey]
-			if newMaxValue > maxValueKey {
-				maxValueKey = newMaxValue
-				maxKey = nonAdjKey
-			}
-		}
-		result1.mapMaxValue[key] = maxValueKey
-		result1.mapNextListMax[key] = append([]int{key}, result1.mapNextListMax[maxKey]...)
-		/* if key == 4324 && result1.mapMaxValue[4326] == 177708 {
-			log.Println(nonAdjList)
-			log.Println(reUpdateValueNonAdjKey)
-			log.Println(result1.tailList)
-			log.Println(result1.adjacentTailList)
-			log.Println(maxTailKey)
-			log.Fatal("Error")
-		} */
-		if maxValueKey > maxValue {
-			maxValue = maxValueKey
-			maxList = result1.mapNextListMax[key]
-		}
-
 	}
-	result1.maxValue = maxValue
-	result1.maxList = maxList
+	if slices.Contains(adjacentTailList, maxTailKey) {
+		for oldMaxTailKeyIndex = len(currentMaxList) - 1; oldMaxTailKeyIndex >= 0; oldMaxTailKeyIndex-- {
+			oldMaxTailKey = currentMaxList[oldMaxTailKeyIndex]
+			if oldMaxTailKey == maxTailKey {
+				break
+			}
+			if !slices.Contains(tailKeyList, oldMaxTailKey) && !slices.Contains(adjacentTailList, oldMaxTailKey) {
+				oldMaxTailKeyIndex++
+				oldMaxTailKey = currentMaxList[oldMaxTailKeyIndex]
+				break
+			}
+		}
+	}
+
+	if oldMaxTailKey == maxTailKey {
+		return reCalculateMaxList(arr, result1, oldMaxTailKeyIndex-1)
+	}
+
+	oldMaxTailKeyIndex--
+	if oldMaxTailKeyIndex < 0 { //no parent of oldMaxTailKey
+		maxKey := maxTailKey
+		parentMaxTailKey := findParentElement(result1.sortedKeyList, maxTailKey)
+		if parentMaxTailKey > 0 {
+			result1.mapMaxValue[parentMaxTailKey] = arr[parentMaxTailKey] + result1.mapMaxValue[maxTailKey]
+			result1.mapNextListMax[parentMaxTailKey] = append([]int{parentMaxTailKey}, result1.mapNextListMax[maxTailKey]...)
+			maxKey = parentMaxTailKey
+		}
+		result1.maxValue = result1.mapMaxValue[maxKey]
+		result1.maxList = result1.mapNextListMax[maxKey]
+		return result1
+	}
+	prevOldMaxTailKey := currentMaxList[oldMaxTailKeyIndex]
+
+	if prevOldMaxTailKey+1 < maxTailKey {
+		result1.mapMaxValue[prevOldMaxTailKey] = arr[prevOldMaxTailKey] + result1.mapMaxValue[maxTailKey]
+		result1.mapNextListMax[prevOldMaxTailKey] = append([]int{prevOldMaxTailKey}, result1.mapNextListMax[maxTailKey]...)
+		return reCalculateMaxList(arr, result1, oldMaxTailKeyIndex-1)
+	}
+	maxKey := maxTailKey
+	result1 = calcKeyFromNonAdjacentList(arr, result1, prevOldMaxTailKey)
+	if result1.mapMaxValue[prevOldMaxTailKey] > result1.mapMaxValue[maxKey] {
+		maxKey = prevOldMaxTailKey
+	}
+	adjacentNewMaxTailKey := findParentElement(result1.sortedKeyList, maxTailKey)
+	if adjacentNewMaxTailKey > 0 {
+		result1.mapMaxValue[adjacentNewMaxTailKey] = arr[adjacentNewMaxTailKey] + result1.mapMaxValue[maxTailKey]
+		result1.mapNextListMax[adjacentNewMaxTailKey] = append([]int{adjacentNewMaxTailKey}, result1.mapNextListMax[maxTailKey]...)
+		if result1.mapMaxValue[adjacentNewMaxTailKey] > result1.mapMaxValue[maxKey] {
+			maxKey = adjacentNewMaxTailKey
+		}
+	}
+	for {
+		oldMaxTailKeyIndex--
+		if oldMaxTailKeyIndex < 0 {
+			result1.maxValue = result1.mapMaxValue[maxKey]
+			result1.maxList = result1.mapNextListMax[maxKey]
+			return result1
+		}
+		selectedParent := currentMaxList[oldMaxTailKeyIndex]
+		result1 = calcKeyFromNonAdjacentList(arr, result1, selectedParent)
+		if result1.mapMaxValue[selectedParent] > result1.mapMaxValue[maxKey] {
+			//keep ((0...1)th parent, selectedParent, prevOldMaxTailKey) > ((0...1)th parent, nearest parentKey, maxTailKey)
+			// OR ((0...1)th parent, nearest parentKey, maxTailKey)
+			maxKey = selectedParent
+			break
+		}
+		newSelectedParent := findParentElement(result1.sortedKeyList, maxKey)
+		if newSelectedParent > 0 {
+			result1.mapMaxValue[newSelectedParent] = arr[newSelectedParent] + result1.mapMaxValue[maxKey]
+			result1.mapNextListMax[newSelectedParent] = append([]int{newSelectedParent}, result1.mapNextListMax[maxKey]...)
+			maxKey = newSelectedParent
+		}
+	}
+	if oldMaxTailKeyIndex-1 >= 0 {
+		result1 = reCalculateMaxList(arr, result1, oldMaxTailKeyIndex-1)
+		maxKey = currentMaxList[0]
+	}
+	result1.maxValue = result1.mapMaxValue[maxKey]
+	result1.maxList = result1.mapNextListMax[maxKey]
 	return result1
+}
+
+func reCalculateMaxList(arr []int32, result1 Result, startIndex int) Result {
+	currentMaxList := result1.maxList
+	for j := startIndex; j >= 0; j-- {
+		currentKey := currentMaxList[j]
+		afterKey := currentMaxList[j+1]
+		result1.mapMaxValue[currentKey] = arr[currentKey] + result1.mapMaxValue[afterKey]
+		result1.mapNextListMax[currentKey] = append([]int{currentKey}, result1.mapNextListMax[afterKey]...)
+	}
+	result1.maxValue = result1.mapMaxValue[currentMaxList[0]]
+	result1.maxList = result1.mapNextListMax[currentMaxList[0]]
+	return result1
+}
+
+func findIndexElement(sortedKeyList []int, searchElm int) int {
+	for i := len(sortedKeyList) - 1; i >= 0; i-- {
+		if sortedKeyList[i] == searchElm {
+			return i
+		}
+	}
+	return -1
+}
+
+func findParentElement(sortedKeyList []int, searchElm int) int {
+	searchIndex := findIndexElement(sortedKeyList, searchElm)
+	for i := searchIndex - 1; i >= 0; i-- {
+		candidateKey := sortedKeyList[i]
+		if candidateKey+2 <= searchElm {
+			return candidateKey
+		}
+	}
+	return -1
+}
+
+func updateOtherHead(arr []int32, result Result, otherHeadNeedUpdate int, startIndex int) Result {
+	if len(result.mapNonAdjacentList[otherHeadNeedUpdate]) == 0 {
+		return result
+	}
+	if slices.Contains(result.tailList, otherHeadNeedUpdate+2) ||
+		slices.Contains(result.adjacentTailList, otherHeadNeedUpdate+2) {
+		result = calcKeyFromNonAdjacentList(arr, result, otherHeadNeedUpdate)
+		return result
+	}
+	maxList := result.maxList
+	nonAdjKeyList := []int{}
+	excludeNonAdjCalc := []int{}
+	for _, key := range result.mapNonAdjacentList[otherHeadNeedUpdate] {
+		if len(excludeNonAdjCalc) == 0 || excludeNonAdjCalc[0] > key+2 {
+			excludeNonAdjCalc = []int{key + 2}
+		}
+		if len(excludeNonAdjCalc) > 0 && key >= excludeNonAdjCalc[0] {
+			break
+		}
+		if slices.Contains(maxList, key) {
+			continue
+		}
+		nonAdjKeyList = append(nonAdjKeyList, key)
+	}
+	var leadMaxPathKey int
+	i := startIndex
+	for {
+		if i == len(maxList) {
+			break
+		}
+		leadMaxPathKey = maxList[i]
+		if otherHeadNeedUpdate+2 <= leadMaxPathKey {
+			break
+		}
+		i++
+	}
+	if otherHeadNeedUpdate+2 <= leadMaxPathKey && len(nonAdjKeyList) == 0 {
+		result.mapMaxValue[otherHeadNeedUpdate] = arr[otherHeadNeedUpdate] + result.mapMaxValue[leadMaxPathKey]
+		result.mapNextListMax[otherHeadNeedUpdate] = append([]int{otherHeadNeedUpdate}, result.mapNextListMax[leadMaxPathKey]...)
+		return result
+	}
+	if i == len(maxList) || slices.Contains(result.tailList, leadMaxPathKey) { //noway to lead max tail
+		//otherHeadNeedUpdate contains (adjanceList, tail list)
+		result = calcKeyFromNonAdjacentList(arr, result, otherHeadNeedUpdate)
+		return result
+	}
+	nonAdjKeyListNeedUpdate := []int{}
+	for _, key := range nonAdjKeyList {
+		if slices.Contains(result.tailList, key) ||
+			slices.Contains(result.adjacentTailList, key) {
+			continue
+		}
+		nonAdjKeyListNeedUpdate = append(nonAdjKeyListNeedUpdate, key)
+	}
+	for j := len(nonAdjKeyListNeedUpdate) - 1; j >= 0; j-- {
+		result = updateOtherHead(arr, result, nonAdjKeyListNeedUpdate[j], i)
+		if DEBUG {
+			if !checkUnique(result.mapNextListMax[nonAdjKeyListNeedUpdate[j]]) {
+				log.Println(result.mapNextListMax[nonAdjKeyListNeedUpdate[j]])
+				log.Fatal("Error Unique in updateOtherHead")
+			}
+			if !checkInvalid(result.mapNextListMax[nonAdjKeyListNeedUpdate[j]]) {
+				log.Println(result.mapNextListMax[nonAdjKeyListNeedUpdate[j]])
+				log.Fatal("Error Invalid in updateOtherHead")
+			}
+		}
+	}
+	result = calcKeyFromNonAdjacentList(arr, result, otherHeadNeedUpdate)
+	return result
+}
+
+func checkUnique(keyList []int) bool {
+	i := 0
+	j := 1
+	for {
+		if i == len(keyList) || j == len(keyList) {
+			return true
+		}
+		if keyList[i] == keyList[j] {
+			return false
+		}
+		i++
+		j++
+	}
+}
+
+func checkInvalid(keyList []int) bool {
+	i := 0
+	j := 1
+	for {
+		if i == len(keyList) || j == len(keyList) {
+			return true
+		}
+		if keyList[i]+1 == keyList[j] {
+			return false
+		}
+		i++
+		j++
+	}
 }
 
 func maxSubsetSumWithoutChannel(arr []int32, left int, right int) Result {
@@ -380,8 +576,10 @@ func calcAndReturnListMaxSum(mapNonAdjacentList map[int][]int, arr []int32, sort
 	tailList := []int{}
 	var maxValue int32
 	calcResult := Result{
-		mapNextListMax: make(map[int][]int),
-		mapMaxValue:    make(map[int]int32),
+		mapNextListMax:     make(map[int][]int),
+		mapMaxValue:        make(map[int]int32),
+		mapNonAdjacentList: mapNonAdjacentList,
+		sortedKeyList:      sortedKeyList,
 	}
 	adjacentTailList := []int{}
 	for i := len(sortedKeyList) - 1; i >= 0; i-- {
@@ -389,59 +587,54 @@ func calcAndReturnListMaxSum(mapNonAdjacentList map[int][]int, arr []int32, sort
 		if len(mapNonAdjacentList[key]) == 0 {
 			tailList = append(tailList, key)
 		}
-		if len(mapNonAdjacentList[key]) == 1 || len(mapNonAdjacentList[key]) == 2 {
+		if len(mapNonAdjacentList[key]) == 1 || len(mapNonAdjacentList[key]) == len(tailList) {
 			adjacentTailList = append(adjacentTailList, key)
 		}
-		value, tempMaxList := getSubsetListByKey(mapNonAdjacentList, key, arr, calcResult)
+		calcResult = calcKeyFromNonAdjacentList(arr, calcResult, key)
+		value, tempMaxList := calcResult.mapMaxValue[key], calcResult.mapNextListMax[key]
+
 		if value > maxValue {
 			maxValue = value
 			maxList = tempMaxList
+			calcResult.maxList = maxList
 		}
 	}
 	calcResult.maxValue = maxValue
 	calcResult.maxList = maxList
-	calcResult.mapNonAdjacentList = mapNonAdjacentList
 	calcResult.tailList = tailList
-	calcResult.sortedKeyList = sortedKeyList
 	calcResult.adjacentTailList = adjacentTailList
 	return calcResult
 }
 
-func getSubsetListByKey(mapNonAdjacentList map[int][]int, key int,
-	arr []int32, calcResult Result) (int32, []int) {
-	value, exists := calcResult.mapMaxValue[key]
-	if exists {
-		return value, calcResult.mapNextListMax[key]
-	}
-	adjancentList := mapNonAdjacentList[key]
-	if len(adjancentList) == 0 && arr[key] > 0 {
-		calcResult.mapMaxValue[key] = arr[key]
+func calcKeyFromNonAdjacentList(arr []int32, calcResult Result, key int) Result {
+	var maxValue int32
+	var maxKey int
+	nonAdjacentList := calcResult.mapNonAdjacentList[key]
+	if len(nonAdjacentList) == 0 {
 		calcResult.mapNextListMax[key] = []int{key}
-		return arr[key], []int{key}
+		calcResult.mapMaxValue[key] = arr[key]
+		return calcResult
 	}
-	var tempMaxList []int
-	var temp int32
-	var result int32
-	var addedValue int32
-	for _, value := range mapNonAdjacentList[key] {
-		addedValue, tempMaxList = getSubsetListByKey(mapNonAdjacentList, value, arr, calcResult)
-		if tempMaxList[0] != key {
-			addedValue = arr[key] + addedValue
-			tempMaxList2 := append([]int{key}, tempMaxList...)
-			tempMaxList = tempMaxList2
+	upperExcludeCalc := []int{}
+	for _, key2 := range nonAdjacentList {
+		if len(upperExcludeCalc) > 0 && key2 >= upperExcludeCalc[0] {
+			break
 		}
-		temp = addedValue
-		if temp > result && temp > 0 {
-			result = temp
-			calcResult.mapNextListMax[key] = tempMaxList
-			calcResult.mapMaxValue[key] = result
+		if arr[key]+calcResult.mapMaxValue[key2] > maxValue {
+			maxValue = arr[key] + calcResult.mapMaxValue[key2]
+			maxKey = key2
+		}
+		if len(upperExcludeCalc) == 0 || upperExcludeCalc[0] > key2+2 {
+			upperExcludeCalc = []int{key2 + 2}
 		}
 	}
-	return calcResult.mapMaxValue[key], calcResult.mapNextListMax[key]
+	calcResult.mapNextListMax[key] = append([]int{key}, calcResult.mapNextListMax[maxKey]...)
+	calcResult.mapMaxValue[key] = maxValue
+	return calcResult
 }
 
 func main() {
-	file, err := os.Open("input09.txt")
+	file, err := os.Open("input07.txt")
 	if err != nil {
 		log.Fatal(err)
 	}

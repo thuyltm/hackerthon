@@ -1,53 +1,31 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
-	"io"
 	"log"
-	"os"
 	"slices"
-	"strconv"
-	"strings"
-	"time"
 )
 
-// Complete the maxSubsetSum function below.
-const COMPARE = false
-const DEBUG = true
-
-func maxSubsetSum(arr []int32) int32 {
-	start := time.Now()
-	result := divideAndConquer(arr, 0, len(arr)-1)
-	elapsed := time.Since(start)
-	fmt.Printf("Simulated operation took %d seconds\n", int(elapsed/time.Second))
-	log.Println(result.maxValue)
-	return result.maxValue
-}
-
-type Result struct {
-	mapNextListMax     map[int][]int
-	mapMaxValue        map[int]int32
-	maxList            []int
-	maxValue           int32
-	mapNonAdjacentList map[int][]int
-	sortedKeyList      []int
-}
-
 func divideAndConquer(arr []int32, start int, end int) Result {
-	if end-start <= 2 {
+	if end-start <= 100 {
 		return maxSubsetSumWithoutChannel(arr, start, end)
 	}
 	middle := start + (end-start)/2
 	result1 := divideAndConquer(arr, start, middle)
 	result2 := divideAndConquer(arr, middle, end)
-	if len(result1.sortedKeyList) == 0 && len(result2.sortedKeyList) == 0 {
+	result1 = combine(arr, result1, result2)
+	result1.start = start
+	result1.end = end
+	return result1
+}
+
+func combine(arr []int32, result1 Result, result2 Result) Result {
+	if len(result1.maxList) == 0 && len(result2.maxList) == 0 {
 		return Result{}
 	}
-	if len(result1.sortedKeyList) == 0 && len(result2.sortedKeyList) > 0 {
+	if len(result1.maxList) == 0 && len(result2.maxList) > 0 {
 		return result2
 	}
-	if len(result1.sortedKeyList) > 0 && len(result2.sortedKeyList) == 0 {
+	if len(result1.maxList) > 0 && len(result2.maxList) == 0 {
 		return result1
 	}
 	oldSortedKeyList1 := result1.sortedKeyList
@@ -97,11 +75,6 @@ func divideAndConquer(arr []int32, start int, end int) Result {
 		maxListList = append(maxListList, maxList7)
 	}
 	result1.maxValue, result1.maxList = getLargestValue(maxValueList, maxListList)
-
-	if COMPARE {
-		tempResult := maxSubsetSumWithoutChannel(arr, start, end)
-		debug(tempResult, result1, result2, arr, start, end, middle)
-	}
 	return result1
 }
 
@@ -566,58 +539,4 @@ func calcKeyFromNonAdjacentList(arr []int32, calcResult Result, key int) Result 
 	calcResult.mapNextListMax[key] = append([]int{key}, calcResult.mapNextListMax[maxKey]...)
 	calcResult.mapMaxValue[key] = arr[key] + calcResult.mapMaxValue[maxKey]
 	return calcResult
-}
-
-func main() {
-	file, err := os.Open("input00.txt")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	reader := bufio.NewReaderSize(file, 1024*1024)
-
-	os.Setenv("OUTPUT_PATH", "result.txt")
-	stdout, err := os.Create(os.Getenv("OUTPUT_PATH"))
-	checkError(err)
-
-	defer stdout.Close()
-
-	writer := bufio.NewWriterSize(stdout, 1024*1024)
-
-	nTemp, err := strconv.ParseInt(readLine(reader), 10, 64)
-	checkError(err)
-	n := int32(nTemp)
-
-	arrTemp := strings.Split(readLine(reader), " ")
-
-	var arr []int32
-
-	for i := 0; i < int(n); i++ {
-		arrItemTemp, err := strconv.ParseInt(arrTemp[i], 10, 64)
-		checkError(err)
-		arrItem := int32(arrItemTemp)
-		arr = append(arr, arrItem)
-	}
-
-	res := maxSubsetSum(arr)
-
-	fmt.Fprintf(writer, "%d\n", res)
-
-	writer.Flush()
-}
-
-func readLine(reader *bufio.Reader) string {
-	str, _, err := reader.ReadLine()
-	if err == io.EOF {
-		return ""
-	}
-
-	return strings.TrimRight(string(str), "\r\n")
-}
-
-func checkError(err error) {
-	if err != nil {
-		panic(err)
-	}
 }
